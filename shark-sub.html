@@ -166,10 +166,16 @@
 
     </div>
     
-    <div class="p-3 bg-gray-900 text-center text-xs text-gray-500 border-t border-gray-700 flex justify-between items-center">
-        <span>資料自動儲存於瀏覽器 LocalStorage</span>
-        <button @click="resetData" class="text-red-400 hover:text-red-300 hover:underline px-2 py-1 rounded border border-red-900 bg-red-900/30">清除重置</button>
-    </div>
+	<div class="p-3 bg-gray-900 text-center text-xs text-gray-500 border-t border-gray-700 flex flex-col md:flex-row justify-between items-center gap-2">
+			<span>資料自動儲存於瀏覽器 LocalStorage</span>
+			<div class="flex items-center gap-2">
+				<input type="file" id="importFile" accept=".json" class="hidden" @change="importData">
+				
+				<button @click="triggerImport" class="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-3 py-1 rounded border border-blue-900 transition">📂 匯入存檔</button>
+				<button @click="exportData" class="text-green-400 hover:text-green-300 hover:bg-green-900/30 px-3 py-1 rounded border border-green-900 transition">💾 匯出存檔</button>
+				<button @click="resetData" class="text-red-400 hover:text-red-300 hover:bg-red-900/30 px-3 py-1 rounded border border-red-900 transition ml-4">⚠️ 清除重置</button>
+			</div>
+	</div>
 </div>
 
 <script>
@@ -404,11 +410,54 @@ createApp({
                 localStorage.removeItem('ff14_shark_tracker');
             }
         };
+		
+		// ================= 新增：匯出功能 =================
+        const exportData = () => {
+            // 將目前的 inventory 轉成 JSON 字串
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(inventory));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            // 設定下載的檔名，加上日期方便辨識
+            const dateStr = new Date().toISOString().slice(0, 10);
+            downloadAnchorNode.setAttribute("download", `ff14_shark_backup_${dateStr}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        };
+
+        // ================= 新增：匯入功能 =================
+        const triggerImport = () => {
+            document.getElementById('importFile').click(); // 觸發隱藏的檔案選擇器
+        };
+
+        const importData = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    // 安全覆蓋：只更新存在於我們資料庫裡的項目，避免讀到亂碼檔壞掉
+                    for (let key in parsed) {
+                        if (inventory[key]) {
+                            inventory[key].have = parsed[key].have;
+                        }
+                    }
+                    alert('✅ 存檔匯入成功！進度已同步。');
+                } catch (error) {
+                    alert('❌ 檔案格式錯誤，請確認這是本系統匯出的 .json 檔案。');
+                }
+                event.target.value = ''; // 清空選擇，允許重複匯入同一個檔案
+            };
+            reader.readAsText(file);
+        };
 
         return { 
             currentTab, inventory, partsData, recipes, remainingNeeds, absoluteBaseNeeds,
             searchCraft, searchBase, filteredBaseItems, filteredCraftItems, 
-            overallProgress, craftItem, resetData 
+            overallProgress, craftItem, resetData,
+			exportData, triggerImport, importData // <--- 多了這三個
         };
     }
 }).mount('#app');
