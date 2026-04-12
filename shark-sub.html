@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FF14 鯊魚級潛水艇 全連動追蹤器</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #1a202c; color: #e2e8f0; }
+        .tab-active { border-bottom: 2px solid #ecc94b; color: #ecc94b; font-weight: bold; background-color: #2d3748; }
+        details > summary { cursor: pointer; list-style: none; outline: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        details > summary::before { content: '▶ '; color: #a0aec0; font-size: 0.8em; display: inline-block; width: 1.5em; transition: 0.2s;}
+        details[open] > summary::before { content: '▼ '; color: #ecc94b; }
+        input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #2d3748; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+    </style>
+</head>
+<body class="p-2 md:p-8 font-sans">
+
+<div id="app" class="max-w-5xl mx-auto bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+    <div class="p-4 md:p-6 bg-gray-900 border-b border-gray-700">
+        <div class="flex justify-between items-end mb-2">
+            <h1 class="text-xl md:text-2xl font-bold text-yellow-500">🦈 鯊魚級潛水艇 終極追蹤器</h1>
+            <p class="text-sm text-yellow-400 font-bold">真實完成度：{{ overallProgress.toFixed(1) }}%</p>
+        </div>
+        <div class="w-full bg-gray-700 rounded-full h-3 md:h-4 relative">
+            <div class="bg-yellow-500 h-3 md:h-4 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(236,201,75,0.5)]" :style="{ width: overallProgress + '%' }"></div>
+        </div>
+    </div>
+
+    <div class="flex bg-gray-800 border-b border-gray-700 text-sm md:text-base font-bold sticky top-0 z-10 shadow-md">
+        <button @click="currentTab = 'tree'" :class="{'tab-active': currentTab === 'tree'}" class="flex-1 py-3 hover:bg-gray-700 transition">🏢 多層部位樹狀圖</button>
+        <button @click="currentTab = 'craft'" :class="{'tab-active': currentTab === 'craft'}" class="flex-1 py-3 hover:bg-gray-700 transition">🔨 製作與半成品</button>
+        <button @click="currentTab = 'base'" :class="{'tab-active': currentTab === 'base'}" class="flex-1 py-3 hover:bg-gray-700 transition">⛏️ 基礎採集清單</button>
+    </div>
+
+    <div class="p-4 md:p-6 h-[70vh] overflow-y-auto custom-scrollbar">
+        
+        <div v-show="currentTab === 'tree'">
+            <div class="mb-4 flex justify-between items-center border-b border-gray-600 pb-2">
+                <h2 class="text-lg text-yellow-400">工坊結構 (多層展開)</h2>
+                <span class="text-xs text-gray-400">層層展開直達最底層原物料</span>
+            </div>
+            
+            <div class="space-y-4">
+                <details v-for="(parts, sectionName) in partsData" :key="sectionName" class="bg-gray-700 p-3 rounded shadow-sm border border-gray-600" open>
+                    <summary class="font-bold text-lg text-white hover:text-yellow-300">{{ sectionName }}</summary>
+                    <div class="ml-4 md:ml-8 mt-3 space-y-3 border-l-2 border-gray-500 pl-3">
+                        
+                        <details v-for="(qty, item) in parts" :key="item" class="bg-gray-800 p-2 rounded border border-gray-700">
+                            <summary class="font-medium text-gray-200 hover:text-yellow-400">
+                                {{ item }} <span class="text-xs text-gray-400 ml-1">(此部位需 {{ qty }})</span>
+                                <span v-if="remainingNeeds[item] === 0" class="text-xs text-green-400 ml-2">✅ 全局數量已達標</span>
+                                <span v-else class="text-xs text-yellow-500 ml-2">全局尚缺 {{ remainingNeeds[item] }}</span>
+                            </summary>
+                            
+                            <div class="ml-6 mt-2 space-y-2 border-l border-gray-600 pl-3">
+                                <template v-if="recipes[item]">
+                                    <div v-for="(reqQty, reqItem) in recipes[item]" :key="reqItem">
+                                        <details v-if="recipes[reqItem]" class="text-sm">
+                                            <summary class="text-blue-300 hover:text-blue-200">
+                                                {{ reqItem }} <span class="text-xs text-gray-400"> (單件耗 {{ reqQty }}，此處共需 {{ reqQty * qty }})</span>
+                                            </summary>
+                                            <div class="ml-6 mt-1 space-y-1 border-l border-gray-700 pl-3">
+                                                <div v-for="(baseQty, baseItem) in recipes[reqItem]" :key="baseItem" class="text-xs text-gray-400 flex items-center">
+                                                    <span class="text-gray-500 mr-2">↳</span>
+                                                    {{ baseItem }} 
+                                                    <span class="ml-2 bg-gray-900 px-1 rounded text-gray-500">此處需 {{ baseQty * (reqQty * qty) }}</span>
+                                                </div>
+                                            </div>
+                                        </details>
+                                        <div v-else class="text-sm text-gray-400 flex items-center">
+                                            <span class="text-gray-600 mr-2">↳</span>
+                                            {{ reqItem }} <span class="text-xs text-gray-500 ml-2">(此處需 {{ reqQty * qty }})</span>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="text-xs text-gray-500 italic">↳ 基礎材料，無須合成。</div>
+                                </template>
+                            </div>
+                        </details>
+
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <div v-show="currentTab === 'craft'">
+            <div class="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-600 pb-2 gap-2">
+                <div>
+                    <h2 class="text-lg text-yellow-400">製作台面板</h2>
+                    <span class="text-xs text-gray-400">已有半成品的數量，將自動豁免底層材料的缺口</span>
+                </div>
+                <input type="text" v-model="searchCraft" placeholder="🔍 搜尋製作物品..." class="w-full md:w-64 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-yellow-500 focus:outline-none focus:border-yellow-500 transition">
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                <div v-for="item in filteredCraftItems" :key="item.name" class="bg-gray-700 p-3 rounded border-l-4 shadow-sm relative group" 
+                     :class="remainingNeeds[item.name] === 0 ? 'border-green-500 bg-gray-800 opacity-60' : 'border-blue-500'">
+                    
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="font-bold" :class="remainingNeeds[item.name] === 0 ? 'text-green-400 line-through' : 'text-gray-100'">
+                            {{ item.name }}
+                        </div>
+                        <div class="text-xs font-bold" :class="remainingNeeds[item.name] === 0 ? 'text-green-400' : 'text-yellow-400'">
+                            尚缺: {{ remainingNeeds[item.name] || 0 }} <span class="text-gray-500 font-normal ml-1">/ 總 {{ absoluteBaseNeeds[item.name] || 0 }}</span>
+                        </div>
+                    </div>
+
+                    <div v-if="recipes[item.name]" class="text-[11px] text-gray-400 mb-2 truncate">
+                        配方：<span v-for="(q, i) in recipes[item.name]">{{ i }}x{{ q }} </span>
+                    </div>
+
+                    <div class="flex justify-between items-center gap-2">
+                        <button v-if="recipes[item.name]" @click="craftItem(item.name, 1)" 
+                                :disabled="remainingNeeds[item.name] === 0"
+                                class="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 text-white px-2 py-1.5 rounded text-xs transition flex-1 font-bold shadow">
+                            🔨 製作 +1
+                        </button>
+                        
+                        <div class="flex items-center gap-1 bg-gray-900 px-2 py-1 rounded border border-gray-600">
+                            <span class="text-xs text-gray-500 mr-1">持有</span>
+                            <button @click="inventory[item.name].have = Math.max(0, inventory[item.name].have - 1)" class="text-gray-400 hover:text-white px-1 font-bold">-</button>
+                            <input type="number" v-model.number="inventory[item.name].have" class="w-12 bg-transparent text-center text-yellow-500 font-bold outline-none text-sm">
+                            <button @click="inventory[item.name].have++" class="text-gray-400 hover:text-white px-1 font-bold">+</button>
+                        </div>
+                    </div>
+                </div>
+                <div v-if="filteredCraftItems.length === 0" class="col-span-full text-center text-gray-500 py-4">找不到符合「{{ searchCraft }}」的物品。</div>
+            </div>
+        </div>
+
+        <div v-show="currentTab === 'base'">
+            <div class="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-600 pb-2 gap-2">
+                <div>
+                    <h2 class="text-lg text-yellow-400">底層原物料總缺口</h2>
+                    <span class="text-xs text-gray-400">此為動態計算結果，已有半成品會自動抵銷此處需求</span>
+                </div>
+                <input type="text" v-model="searchBase" placeholder="🔍 搜尋礦石/素材..." class="w-full md:w-64 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-yellow-500 focus:outline-none focus:border-yellow-500 transition">
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div v-for="item in filteredBaseItems" :key="item.name" class="bg-gray-700 p-2 md:p-3 rounded flex flex-col justify-between border border-gray-600" 
+                     :class="{'opacity-40 grayscale': remainingNeeds[item.name] === 0}">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="font-bold text-sm" :class="remainingNeeds[item.name] === 0 ? 'line-through text-gray-500' : 'text-gray-100'">
+                            {{ item.name }}
+                        </div>
+                        <div class="text-xs font-mono font-bold" :class="remainingNeeds[item.name] === 0 ? 'text-green-500' : 'text-yellow-400'">
+                            尚缺: {{ remainingNeeds[item.name] || 0 }} <span class="text-gray-500 font-normal ml-1">/ 總 {{ absoluteBaseNeeds[item.name] || 0 }}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center mt-auto bg-gray-900 rounded border border-gray-600 overflow-hidden">
+                        <span class="text-xs text-gray-500 px-2 border-r border-gray-700">身上持有</span>
+                        <input type="number" v-model.number="inventory[item.name].have" class="w-full bg-transparent p-1.5 text-center text-yellow-500 font-bold text-sm outline-none">
+                    </div>
+                </div>
+                <div v-if="filteredBaseItems.length === 0" class="col-span-full text-center text-gray-500 py-4">找不到符合「{{ searchBase }}」的素材。</div>
+            </div>
+        </div>
+
+    </div>
+    
+    <div class="p-3 bg-gray-900 text-center text-xs text-gray-500 border-t border-gray-700 flex justify-between items-center">
+        <span>資料自動儲存於瀏覽器 LocalStorage</span>
+        <button @click="resetData" class="text-red-400 hover:text-red-300 hover:underline px-2 py-1 rounded border border-red-900 bg-red-900/30">清除重置</button>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, watch, onMounted } = Vue;
+
+const defaultInventory = {
+    // 基礎材料
+    '鐵礦': { have: 0 }, '鈷鐵礦': { have: 0 }, '焦炭': { have: 0 },
+    '秘銀礦': { have: 0 }, '玄鐵礦': { have: 0 }, '炸彈的灰': { have: 0 },
+    '斑銅礦': { have: 0 }, '銀礦': { have: 0 }, '綠金礦': { have: 0 },
+    '金礦': { have: 0 }, '雲杉原木': { have: 0 }, '樹汁塊': { have: 0 },
+    '胡桃原木': { have: 0 }, '雪松原木': { have: 0 }, '銅礦': { have: 0 },
+    '山羊角': { have: 0 }, '琥珀原石': { have: 0 }, '亞麻': { have: 0 },
+    '矽化木': { have: 0 }, '緋紅樹汁': { have: 0 }, '松節油': { have: 0 },
+
+    // 加工與成品
+    '白鋼錠': { have: 0 }, '鈷鐵錠': { have: 0 }, '白鋼鉚釘': { have: 0 },
+    '秘銀錠': { have: 0 }, '玄鋼塊': { have: 0 }, '鈷鐵連接板': { have: 0 },
+    '秘銀鉚釘': { have: 0 }, '黑鐵錠': { have: 0 }, '白鋼連接板': { have: 0 },
+    '白銀錠': { have: 0 }, '玄鋼錠': { have: 0 }, '雲杉木材': { have: 0 },
+    '玫瑰金塊': { have: 0 }, '黑鐵釘': { have: 0 }, '黑鐵鉚釘': { have: 0 },
+    '綠金錠': { have: 0 }, '玫瑰金錠': { have: 0 }, '鈷鐵鉚釘': { have: 0 },
+    '秘銀板': { have: 0 }, '古神木材': { have: 0 }, '胡桃木材': { have: 0 },
+    '亞麻油': { have: 0 }, '鬼膠': { have: 0 }, '清漆': { have: 0 },
+    '硬化雲杉木材': { have: 0 }, '雪松木材': { have: 0 }
+};
+
+const recipeDB = {
+    '白鋼錠': { '鐵礦': 2, '炸彈的灰': 1 },
+    '白鋼鉚釘': { '白鋼錠': 1 }, 
+    '白鋼連接板': { '白鋼錠': 1 },
+    '鈷鐵錠': { '鈷鐵礦': 2, '鐵礦': 1 },
+    '鈷鐵鉚釘': { '鈷鐵錠': 1 },
+    '鈷鐵連接板': { '鈷鐵錠': 1 },
+    '秘銀錠': { '秘銀礦': 3 },
+    '秘銀鉚釘': { '秘銀錠': 1 },
+    '秘銀板': { '秘銀錠': 2 },
+    '玄鋼塊': { '玄鐵礦': 3 },
+    '玄鋼錠': { '玄鋼塊': 1, '焦炭': 9 },
+    '白銀錠': { '銀礦': 3 },
+    '綠金錠': { '綠金礦': 4 },
+    '黑鐵錠': { '鐵礦': 3 }, 
+    '黑鐵釘': { '黑鐵錠': 1 },
+    '黑鐵鉚釘': { '黑鐵錠': 1 },
+    '玫瑰金塊': { '金礦': 3, '銅礦': 1 },
+    '玫瑰金錠': { '玫瑰金塊': 1, '斑銅礦': 9 }, 
+    '雲杉木材': { '雲杉原木': 3 },
+    '胡桃木材': { '胡桃原木': 3 },
+    '雪松木材': { '雪松原木': 5 }, 
+    '硬化雲杉木材': { '雲杉木材': 1, '樹汁塊': 9 }, 
+    '古神木材': { '矽化木': 1, '緋紅樹汁': 1 }, 
+    '鬼膠': { '山羊角': 2 },
+    '亞麻油': { '亞麻': 2 },
+    '清漆': { '琥珀原石': 2, '亞麻油': 1, '松節油': 1 }
+};
+
+const subPartsData = {
+    // 修正：船首的 鈷鐵連接板 已更正為 30
+    '船首 (Bow)': {
+        '白鋼錠': 30, '白鋼鉚釘': 60, '白鋼連接板': 30, '鈷鐵錠': 18, 
+        '鈷鐵連接板': 30, '玄鋼錠': 12, '秘銀鉚釘': 30, '白銀錠': 30, '古神木材': 9
+    },
+    '艦橋 (Bridge)': {
+        '白鋼錠': 21, '白鋼鉚釘': 42, '鈷鐵錠': 18, '鈷鐵鉚釘': 21,
+        '玄鋼錠': 24, '玄鋼塊': 21, '黑鐵釘': 21, '黑鐵鉚釘': 21,
+        '綠金錠': 21, '硬化雲杉木材': 12
+    },
+    '船體 (Hull)': {
+        '鈷鐵錠': 36, '黑鐵釘': 18, '黑鐵鉚釘': 18, '秘銀鉚釘': 18,
+        '秘銀板': 18, '綠金錠': 18, '玫瑰金錠': 21, '雲杉木材': 18,
+        '胡桃木材': 18, '雪松木材': 9, '鬼膠': 18, '清漆': 18
+    },
+    '船尾 (Stern)': {
+        '白鋼錠': 54, '白鋼鉚釘': 24, '白鋼連接板': 30, '鈷鐵錠': 78,
+        '鈷鐵連接板': 24, '玄鋼錠': 9, '秘銀鉚釘': 30, '白銀錠': 30, '古神木材': 9
+    }
+};
+
+createApp({
+    setup() {
+        const currentTab = ref('tree');
+        const searchCraft = ref('');
+        const searchBase = ref('');
+        const inventory = reactive(JSON.parse(JSON.stringify(defaultInventory)));
+        const recipes = recipeDB;
+        const partsData = subPartsData;
+
+        onMounted(() => {
+            const saved = localStorage.getItem('ff14_shark_tracker');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                for (let key in parsed) {
+                    if (inventory[key]) inventory[key].have = parsed[key].have;
+                }
+            }
+        });
+
+        watch(inventory, (newVal) => {
+            localStorage.setItem('ff14_shark_tracker', JSON.stringify(newVal));
+        }, { deep: true });
+
+        const absoluteBaseNeeds = computed(() => {
+            let queue = {};
+            for(let part in partsData) {
+                for(let item in partsData[part]) {
+                    queue[item] = (queue[item] || 0) + partsData[part][item];
+                }
+            }
+            let finalNeeds = {};
+            const processOrder = [
+                '白鋼鉚釘', '白鋼連接板', '鈷鐵鉚釘', '鈷鐵連接板', '秘銀鉚釘', '秘銀板',
+                '玄鋼錠', '黑鐵釘', '黑鐵鉚釘', '玫瑰金錠', '硬化雲杉木材', '清漆',
+                '白鋼錠', '鈷鐵錠', '秘銀錠', '玄鋼塊', '白銀錠', '綠金錠', '黑鐵錠',
+                '玫瑰金塊', '雲杉木材', '古神木材', '胡桃木材', '雪松木材', '鬼膠', '亞麻油',
+                ...Object.keys(defaultInventory).filter(k => !recipes[k])
+            ];
+
+            processOrder.forEach(item => {
+                let needed = queue[item] || 0;
+                finalNeeds[item] = needed;
+                if (needed > 0 && recipes[item]) {
+                    for (let ing in recipes[item]) {
+                        queue[ing] = (queue[ing] || 0) + (needed * recipes[item][ing]);
+                    }
+                }
+            });
+            return finalNeeds;
+        });
+
+        const remainingNeeds = computed(() => {
+            let tempHave = {};
+            for(let key in inventory) tempHave[key] = inventory[key].have || 0;
+
+            let queue = {};
+            for(let part in partsData) {
+                for(let item in partsData[part]) {
+                    queue[item] = (queue[item] || 0) + partsData[part][item];
+                }
+            }
+
+            let finalNeeds = {};
+            const processOrder = [
+                '白鋼鉚釘', '白鋼連接板', '鈷鐵鉚釘', '鈷鐵連接板', '秘銀鉚釘', '秘銀板',
+                '玄鋼錠', '黑鐵釘', '黑鐵鉚釘', '玫瑰金錠', '硬化雲杉木材', '清漆',
+                '白鋼錠', '鈷鐵錠', '秘銀錠', '玄鋼塊', '白銀錠', '綠金錠', '黑鐵錠',
+                '玫瑰金塊', '雲杉木材', '古神木材', '胡桃木材', '雪松木材', '鬼膠', '亞麻油',
+                ...Object.keys(defaultInventory).filter(k => !recipes[k])
+            ];
+
+            processOrder.forEach(item => {
+                let needed = queue[item] || 0;
+                
+                let consumed = Math.min(tempHave[item] || 0, needed);
+                if(tempHave[item]) tempHave[item] -= consumed;
+                needed -= consumed;
+
+                finalNeeds[item] = needed;
+
+                if (needed > 0 && recipes[item]) {
+                    for (let ing in recipes[item]) {
+                        queue[ing] = (queue[ing] || 0) + (needed * recipes[item][ing]);
+                    }
+                }
+            });
+
+            return finalNeeds;
+        });
+
+        const baseItems = computed(() => {
+            return Object.keys(inventory)
+                .filter(key => !recipes[key] && !Object.values(partsData).some(p => p[key]))
+                .map(key => ({ name: key, ...inventory[key] }));
+        });
+
+        const craftItems = computed(() => {
+            return Object.keys(inventory)
+                .filter(key => !baseItems.value.find(b => b.name === key))
+                .map(key => ({ name: key, ...inventory[key] }));
+        });
+
+        const filteredBaseItems = computed(() => {
+            if (!searchBase.value) return baseItems.value;
+            return baseItems.value.filter(item => item.name.includes(searchBase.value));
+        });
+
+        const filteredCraftItems = computed(() => {
+            if (!searchCraft.value) return craftItems.value;
+            return craftItems.value.filter(item => item.name.includes(searchCraft.value));
+        });
+
+        const overallProgress = computed(() => {
+            let totalBaseNeed = 0; 
+            let totalBaseRemaining = 0;
+            
+            baseItems.value.forEach(item => {
+                totalBaseNeed += absoluteBaseNeeds.value[item.name] || 0;
+                totalBaseRemaining += remainingNeeds.value[item.name] || 0;
+            });
+
+            if (totalBaseNeed === 0) return 0;
+            return ((totalBaseNeed - totalBaseRemaining) / totalBaseNeed) * 100;
+        });
+
+        const craftItem = (itemName, qty) => {
+            const recipe = recipes[itemName];
+            if (!recipe) return;
+
+            let canCraft = true;
+            for (const [reqItem, reqQty] of Object.entries(recipe)) {
+                if (!inventory[reqItem] || inventory[reqItem].have < (reqQty * qty)) {
+                    canCraft = false;
+                    alert(`【材料不足】製作需要 ${reqQty * qty} 個「${reqItem}」，但您目前身上只有 ${inventory[reqItem]?.have || 0} 個。`);
+                    break;
+                }
+            }
+
+            if (canCraft) {
+                for (const [reqItem, reqQty] of Object.entries(recipe)) {
+                    inventory[reqItem].have -= (reqQty * qty);
+                }
+                inventory[itemName].have += qty;
+            }
+        };
+
+        const resetData = () => {
+            if (confirm('⚠️ 警告：確定要清空所有進度重新開始嗎？')) {
+                for (let key in inventory) {
+                    if (inventory[key]) {
+                        inventory[key].have = 0;
+                    }
+                }
+                localStorage.removeItem('ff14_shark_tracker');
+            }
+        };
+
+        return { 
+            currentTab, inventory, partsData, recipes, remainingNeeds, absoluteBaseNeeds,
+            searchCraft, searchBase, filteredBaseItems, filteredCraftItems, 
+            overallProgress, craftItem, resetData 
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
