@@ -7,38 +7,39 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #1a202c; color: #e2e8f0; }
+        /* 移除自訂捲軸樣式，回歸瀏覽器原生捲軸以提升流暢度 */
+        body { background-color: #1a202c; color: #e2e8f0; margin: 0; padding: 0; }
         .tab-active { border-bottom: 2px solid #ecc94b; color: #ecc94b; font-weight: bold; background-color: #2d3748; }
         details > summary { cursor: pointer; list-style: none; outline: none; }
         details > summary::-webkit-details-marker { display: none; }
         details > summary::before { content: '▶ '; color: #a0aec0; font-size: 0.8em; display: inline-block; width: 1.5em; transition: 0.2s;}
         details[open] > summary::before { content: '▼ '; color: #ecc94b; }
         input[type=number]::-webkit-inner-spin-button { opacity: 1; }
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #2d3748; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
     </style>
 </head>
-<body class="p-2 md:p-8 font-sans">
+<body class="font-sans bg-gray-900">
 
-<div id="app" class="max-w-5xl mx-auto bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+<div id="app" class="w-full min-h-screen flex flex-col bg-gray-800">
+    
     <div class="p-4 md:p-6 bg-gray-900 border-b border-gray-700">
-        <div class="flex justify-between items-end mb-2">
+        <div class="flex justify-between items-end mb-2 max-w-7xl mx-auto w-full">
             <h1 class="text-xl md:text-2xl font-bold text-yellow-500">🦈 鯊魚級潛水艇 終極追蹤器</h1>
             <p class="text-sm text-yellow-400 font-bold">真實完成度：{{ overallProgress.toFixed(1) }}%</p>
         </div>
-        <div class="w-full bg-gray-700 rounded-full h-3 md:h-4 relative">
+        <div class="w-full max-w-7xl mx-auto bg-gray-700 rounded-full h-3 md:h-4 relative">
             <div class="bg-yellow-500 h-3 md:h-4 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(236,201,75,0.5)]" :style="{ width: overallProgress + '%' }"></div>
         </div>
     </div>
 
-    <div class="flex bg-gray-800 border-b border-gray-700 text-sm md:text-base font-bold sticky top-0 z-10 shadow-md">
-        <button @click="currentTab = 'tree'" :class="{'tab-active': currentTab === 'tree'}" class="flex-1 py-3 hover:bg-gray-700 transition">🏢 多層部位樹狀圖</button>
-        <button @click="currentTab = 'craft'" :class="{'tab-active': currentTab === 'craft'}" class="flex-1 py-3 hover:bg-gray-700 transition">🔨 製作與半成品</button>
-        <button @click="currentTab = 'base'" :class="{'tab-active': currentTab === 'base'}" class="flex-1 py-3 hover:bg-gray-700 transition">⛏️ 基礎採集清單</button>
+    <div class="flex bg-gray-800 border-b border-gray-700 text-sm md:text-base font-bold sticky top-0 z-20 shadow-md">
+        <div class="flex w-full max-w-7xl mx-auto">
+            <button @click="currentTab = 'tree'" :class="{'tab-active': currentTab === 'tree'}" class="flex-1 py-3 hover:bg-gray-700 transition">🏢 多層部位樹狀圖</button>
+            <button @click="currentTab = 'craft'" :class="{'tab-active': currentTab === 'craft'}" class="flex-1 py-3 hover:bg-gray-700 transition">🔨 製作與半成品</button>
+            <button @click="currentTab = 'base'" :class="{'tab-active': currentTab === 'base'}" class="flex-1 py-3 hover:bg-gray-700 transition">⛏️ 基礎採集清單</button>
+        </div>
     </div>
 
-    <div class="p-4 md:p-6 h-[70vh] overflow-y-auto custom-scrollbar">
+    <div class="p-4 md:p-6 lg:p-8 flex-grow w-full max-w-7xl mx-auto">
         
         <div v-show="currentTab === 'tree'">
             <div class="mb-4 flex justify-between items-center border-b border-gray-600 pb-2">
@@ -99,7 +100,7 @@
                 <input type="text" v-model="searchCraft" placeholder="🔍 搜尋製作物品..." class="w-full md:w-64 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-yellow-500 focus:outline-none focus:border-yellow-500 transition">
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
                 <div v-for="item in filteredCraftItems" :key="item.name" class="bg-gray-700 p-3 rounded border-l-4 shadow-sm relative group" 
                      :class="remainingNeeds[item.name] === 0 ? 'border-green-500 bg-gray-800 opacity-60' : 'border-blue-500'">
                     
@@ -124,14 +125,14 @@
                         </button>
                         
                         <div class="flex items-center gap-1 bg-gray-900 px-2 py-1 rounded border border-gray-600">
-                            <span class="text-xs text-gray-500 mr-1">持有</span>
-                            <button @click="inventory[item.name].have = Math.max(0, inventory[item.name].have - 1)" class="text-gray-400 hover:text-white px-1 font-bold">-</button>
+                            <span class="text-xs text-gray-500 mr-1 hidden sm:inline">持有</span>
+                            <button @click="inventory[item.name].have = Math.max(0, inventory[item.name].have - 1)" class="text-gray-400 hover:text-white px-2 font-bold">-</button>
                             <input type="number" v-model.number="inventory[item.name].have" class="w-12 bg-transparent text-center text-yellow-500 font-bold outline-none text-sm">
-                            <button @click="inventory[item.name].have++" class="text-gray-400 hover:text-white px-1 font-bold">+</button>
+                            <button @click="inventory[item.name].have++" class="text-gray-400 hover:text-white px-2 font-bold">+</button>
                         </div>
                     </div>
                 </div>
-                <div v-if="filteredCraftItems.length === 0" class="col-span-full text-center text-gray-500 py-4">找不到符合「{{ searchCraft }}」的物品。</div>
+                <div v-if="filteredCraftItems.length === 0" class="col-span-full text-center text-gray-500 py-8">找不到符合「{{ searchCraft }}」的物品。</div>
             </div>
         </div>
 
@@ -144,7 +145,7 @@
                 <input type="text" v-model="searchBase" placeholder="🔍 搜尋礦石/素材..." class="w-full md:w-64 bg-gray-900 border border-gray-600 rounded px-3 py-1.5 text-sm text-yellow-500 focus:outline-none focus:border-yellow-500 transition">
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 <div v-for="item in filteredBaseItems" :key="item.name" class="bg-gray-700 p-2 md:p-3 rounded flex flex-col justify-between border border-gray-600" 
                      :class="{'opacity-40 grayscale': remainingNeeds[item.name] === 0}">
                     <div class="flex justify-between items-start mb-2">
@@ -156,26 +157,28 @@
                         </div>
                     </div>
                     <div class="flex items-center mt-auto bg-gray-900 rounded border border-gray-600 overflow-hidden">
-                        <span class="text-xs text-gray-500 px-2 border-r border-gray-700">身上持有</span>
+                        <span class="text-xs text-gray-500 px-2 border-r border-gray-700 hidden sm:block">身上持有</span>
                         <input type="number" v-model.number="inventory[item.name].have" class="w-full bg-transparent p-1.5 text-center text-yellow-500 font-bold text-sm outline-none">
                     </div>
                 </div>
-                <div v-if="filteredBaseItems.length === 0" class="col-span-full text-center text-gray-500 py-4">找不到符合「{{ searchBase }}」的素材。</div>
+                <div v-if="filteredBaseItems.length === 0" class="col-span-full text-center text-gray-500 py-8">找不到符合「{{ searchBase }}」的素材。</div>
             </div>
         </div>
 
     </div>
     
-	<div class="p-3 bg-gray-900 text-center text-xs text-gray-500 border-t border-gray-700 flex flex-col md:flex-row justify-between items-center gap-2">
-			<span>資料自動儲存於瀏覽器 LocalStorage</span>
-			<div class="flex items-center gap-2">
-				<input type="file" id="importFile" accept=".json" class="hidden" @change="importData">
-				
-				<button @click="triggerImport" class="text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 px-3 py-1 rounded border border-blue-900 transition">📂 匯入存檔</button>
-				<button @click="exportData" class="text-green-400 hover:text-green-300 hover:bg-green-900/30 px-3 py-1 rounded border border-green-900 transition">💾 匯出存檔</button>
-				<button @click="resetData" class="text-red-400 hover:text-red-300 hover:bg-red-900/30 px-3 py-1 rounded border border-red-900 transition ml-4">⚠️ 清除重置</button>
-			</div>
-	</div>
+    <div class="mt-auto p-4 bg-gray-900 border-t border-gray-700 w-full">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <span class="text-xs text-gray-500">資料自動儲存於瀏覽器 LocalStorage</span>
+            <div class="flex flex-wrap justify-center items-center gap-2">
+                <input type="file" id="importFile" accept=".json" class="hidden" @change="importData">
+                
+                <button @click="triggerImport" class="text-sm font-bold text-blue-400 hover:text-blue-300 bg-blue-900/20 hover:bg-blue-900/40 px-4 py-2 rounded border border-blue-800 transition">📂 匯入存檔</button>
+                <button @click="exportData" class="text-sm font-bold text-green-400 hover:text-green-300 bg-green-900/20 hover:bg-green-900/40 px-4 py-2 rounded border border-green-800 transition">💾 匯出存檔</button>
+                <button @click="resetData" class="text-sm font-bold text-red-400 hover:text-red-300 bg-red-900/20 hover:bg-red-900/40 px-4 py-2 rounded border border-red-800 transition md:ml-4">⚠️ 清除重置</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -233,7 +236,6 @@ const recipeDB = {
 };
 
 const subPartsData = {
-    // 修正：船首的 鈷鐵連接板 已更正為 30
     '船首 (Bow)': {
         '白鋼錠': 30, '白鋼鉚釘': 60, '白鋼連接板': 30, '鈷鐵錠': 18, 
         '鈷鐵連接板': 30, '玄鋼錠': 12, '秘銀鉚釘': 30, '白銀錠': 30, '古神木材': 9
@@ -410,14 +412,12 @@ createApp({
                 localStorage.removeItem('ff14_shark_tracker');
             }
         };
-		
-		// ================= 新增：匯出功能 =================
+
+        // 匯出功能
         const exportData = () => {
-            // 將目前的 inventory 轉成 JSON 字串
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(inventory));
             const downloadAnchorNode = document.createElement('a');
             downloadAnchorNode.setAttribute("href", dataStr);
-            // 設定下載的檔名，加上日期方便辨識
             const dateStr = new Date().toISOString().slice(0, 10);
             downloadAnchorNode.setAttribute("download", `ff14_shark_backup_${dateStr}.json`);
             document.body.appendChild(downloadAnchorNode);
@@ -425,9 +425,9 @@ createApp({
             downloadAnchorNode.remove();
         };
 
-        // ================= 新增：匯入功能 =================
+        // 匯入功能
         const triggerImport = () => {
-            document.getElementById('importFile').click(); // 觸發隱藏的檔案選擇器
+            document.getElementById('importFile').click();
         };
 
         const importData = (event) => {
@@ -438,7 +438,6 @@ createApp({
             reader.onload = (e) => {
                 try {
                     const parsed = JSON.parse(e.target.result);
-                    // 安全覆蓋：只更新存在於我們資料庫裡的項目，避免讀到亂碼檔壞掉
                     for (let key in parsed) {
                         if (inventory[key]) {
                             inventory[key].have = parsed[key].have;
@@ -448,7 +447,7 @@ createApp({
                 } catch (error) {
                     alert('❌ 檔案格式錯誤，請確認這是本系統匯出的 .json 檔案。');
                 }
-                event.target.value = ''; // 清空選擇，允許重複匯入同一個檔案
+                event.target.value = '';
             };
             reader.readAsText(file);
         };
@@ -457,7 +456,7 @@ createApp({
             currentTab, inventory, partsData, recipes, remainingNeeds, absoluteBaseNeeds,
             searchCraft, searchBase, filteredBaseItems, filteredCraftItems, 
             overallProgress, craftItem, resetData,
-			exportData, triggerImport, importData // <--- 多了這三個
+            exportData, triggerImport, importData
         };
     }
 }).mount('#app');
