@@ -7,7 +7,6 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 移除自訂捲軸樣式，回歸瀏覽器原生捲軸以提升流暢度 */
         body { background-color: #1a202c; color: #e2e8f0; margin: 0; padding: 0; }
         .tab-active { border-bottom: 2px solid #ecc94b; color: #ecc94b; font-weight: bold; background-color: #2d3748; }
         details > summary { cursor: pointer; list-style: none; outline: none; }
@@ -54,7 +53,9 @@
                         
                         <details v-for="(qty, item) in parts" :key="item" class="bg-gray-800 p-2 rounded border border-gray-700">
                             <summary class="font-medium text-gray-200 hover:text-yellow-400">
-                                {{ item }} <span class="text-xs text-gray-400 ml-1">(此部位需 {{ qty }})</span>
+                                {{ item }} 
+                                <button @click.prevent="copyToClipboard(item)" class="ml-1 text-gray-500 hover:text-white text-xs cursor-pointer" title="複製名稱">📋</button>
+                                <span class="text-xs text-gray-400 ml-1">(此部位需 {{ qty }})</span>
                                 <span v-if="remainingNeeds[item] === 0" class="text-xs text-green-400 ml-2">✅ 全局數量已達標</span>
                                 <span v-else class="text-xs text-yellow-500 ml-2">全局尚缺 {{ remainingNeeds[item] }}</span>
                             </summary>
@@ -64,19 +65,24 @@
                                     <div v-for="(reqQty, reqItem) in recipes[item]" :key="reqItem">
                                         <details v-if="recipes[reqItem]" class="text-sm">
                                             <summary class="text-blue-300 hover:text-blue-200">
-                                                {{ reqItem }} <span class="text-xs text-gray-400"> (單件耗 {{ reqQty }}，此處共需 {{ reqQty * qty }})</span>
+                                                {{ reqItem }} 
+                                                <button @click.prevent="copyToClipboard(reqItem)" class="ml-1 text-gray-500 hover:text-white text-xs cursor-pointer" title="複製名稱">📋</button>
+                                                <span class="text-xs text-gray-400"> (單件耗 {{ reqQty }}，此處共需 {{ reqQty * qty }})</span>
                                             </summary>
                                             <div class="ml-6 mt-1 space-y-1 border-l border-gray-700 pl-3">
                                                 <div v-for="(baseQty, baseItem) in recipes[reqItem]" :key="baseItem" class="text-xs text-gray-400 flex items-center">
                                                     <span class="text-gray-500 mr-2">↳</span>
                                                     {{ baseItem }} 
+                                                    <button @click.stop="copyToClipboard(baseItem)" class="ml-1 text-gray-500 hover:text-white text-xs cursor-pointer" title="複製名稱">📋</button>
                                                     <span class="ml-2 bg-gray-900 px-1 rounded text-gray-500">此處需 {{ baseQty * (reqQty * qty) }}</span>
                                                 </div>
                                             </div>
                                         </details>
                                         <div v-else class="text-sm text-gray-400 flex items-center">
                                             <span class="text-gray-600 mr-2">↳</span>
-                                            {{ reqItem }} <span class="text-xs text-gray-500 ml-2">(此處需 {{ reqQty * qty }})</span>
+                                            {{ reqItem }} 
+                                            <button @click.stop="copyToClipboard(reqItem)" class="ml-1 text-gray-500 hover:text-white text-xs cursor-pointer" title="複製名稱">📋</button>
+                                            <span class="text-xs text-gray-500 ml-2">(此處需 {{ reqQty * qty }})</span>
                                         </div>
                                     </div>
                                 </template>
@@ -105,8 +111,9 @@
                      :class="remainingNeeds[item.name] === 0 ? 'border-green-500 bg-gray-800 opacity-60' : 'border-blue-500'">
                     
                     <div class="flex justify-between items-center mb-1">
-                        <div class="font-bold" :class="remainingNeeds[item.name] === 0 ? 'text-green-400 line-through' : 'text-gray-100'">
-                            {{ item.name }}
+                        <div class="font-bold flex items-center" :class="remainingNeeds[item.name] === 0 ? 'text-green-400' : 'text-gray-100'">
+                            <span :class="{'line-through': remainingNeeds[item.name] === 0}">{{ item.name }}</span>
+                            <button @click.stop="copyToClipboard(item.name)" class="ml-1.5 text-gray-500 hover:text-white text-xs cursor-pointer no-underline inline-block" title="複製名稱">📋</button>
                         </div>
                         <div class="text-xs font-bold" :class="remainingNeeds[item.name] === 0 ? 'text-green-400' : 'text-yellow-400'">
                             尚缺: {{ remainingNeeds[item.name] || 0 }} <span class="text-gray-500 font-normal ml-1">/ 總 {{ absoluteBaseNeeds[item.name] || 0 }}</span>
@@ -118,11 +125,16 @@
                     </div>
 
                     <div class="flex justify-between items-center gap-2">
-                        <button v-if="recipes[item.name]" @click="craftItem(item.name, 1)" 
-                                :disabled="remainingNeeds[item.name] === 0"
-                                class="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 text-white px-2 py-1.5 rounded text-xs transition flex-1 font-bold shadow">
-                            🔨 製作 +1
-                        </button>
+                        <div v-if="recipes[item.name]" class="flex items-center flex-1 gap-1">
+                            <input type="number" min="1" max="99" v-model.number="craftQty[item.name]" placeholder="1" 
+                                   class="w-12 bg-gray-900 border border-gray-600 rounded px-1 py-1.5 text-center text-yellow-500 font-bold text-xs outline-none focus:border-yellow-500"
+                                   @blur="if(!craftQty[item.name] || craftQty[item.name] < 1) craftQty[item.name] = 1; if(craftQty[item.name] > 99) craftQty[item.name] = 99;">
+                            <button @click="craftItem(item.name, craftQty[item.name] || 1)" 
+                                    :disabled="remainingNeeds[item.name] === 0"
+                                    class="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:text-gray-400 text-white px-2 py-1.5 rounded text-xs transition flex-1 font-bold shadow whitespace-nowrap">
+                                🔨 製作
+                            </button>
+                        </div>
                         
                         <div class="flex items-center gap-1 bg-gray-900 px-2 py-1 rounded border border-gray-600">
                             <span class="text-xs text-gray-500 mr-1 hidden sm:inline">持有</span>
@@ -149,8 +161,9 @@
                 <div v-for="item in filteredBaseItems" :key="item.name" class="bg-gray-700 p-2 md:p-3 rounded flex flex-col justify-between border border-gray-600" 
                      :class="{'opacity-40 grayscale': remainingNeeds[item.name] === 0}">
                     <div class="flex justify-between items-start mb-2">
-                        <div class="font-bold text-sm" :class="remainingNeeds[item.name] === 0 ? 'line-through text-gray-500' : 'text-gray-100'">
-                            {{ item.name }}
+                        <div class="font-bold text-sm flex items-center" :class="remainingNeeds[item.name] === 0 ? 'text-gray-500' : 'text-gray-100'">
+                            <span :class="{'line-through': remainingNeeds[item.name] === 0}">{{ item.name }}</span>
+                            <button @click.stop="copyToClipboard(item.name)" class="ml-1.5 text-gray-400 hover:text-white text-xs cursor-pointer no-underline inline-block" title="複製名稱">📋</button>
                         </div>
                         <div class="text-xs font-mono font-bold" :class="remainingNeeds[item.name] === 0 ? 'text-green-500' : 'text-yellow-400'">
                             尚缺: {{ remainingNeeds[item.name] || 0 }} <span class="text-gray-500 font-normal ml-1">/ 總 {{ absoluteBaseNeeds[item.name] || 0 }}</span>
@@ -185,7 +198,6 @@
 const { createApp, ref, reactive, computed, watch, onMounted } = Vue;
 
 const defaultInventory = {
-    // 基礎材料
     '鐵礦': { have: 0 }, '鈷鐵礦': { have: 0 }, '焦炭': { have: 0 },
     '秘銀礦': { have: 0 }, '玄鐵礦': { have: 0 }, '炸彈的灰': { have: 0 },
     '斑銅礦': { have: 0 }, '銀礦': { have: 0 }, '綠金礦': { have: 0 },
@@ -193,8 +205,6 @@ const defaultInventory = {
     '胡桃原木': { have: 0 }, '雪松原木': { have: 0 }, '銅礦': { have: 0 },
     '山羊角': { have: 0 }, '琥珀原石': { have: 0 }, '亞麻': { have: 0 },
     '矽化木': { have: 0 }, '緋紅樹汁': { have: 0 }, '松節油': { have: 0 },
-
-    // 加工與成品
     '白鋼錠': { have: 0 }, '鈷鐵錠': { have: 0 }, '白鋼鉚釘': { have: 0 },
     '秘銀錠': { have: 0 }, '玄鋼塊': { have: 0 }, '鈷鐵連接板': { have: 0 },
     '秘銀鉚釘': { have: 0 }, '黑鐵錠': { have: 0 }, '白鋼連接板': { have: 0 },
@@ -262,8 +272,26 @@ createApp({
         const searchCraft = ref('');
         const searchBase = ref('');
         const inventory = reactive(JSON.parse(JSON.stringify(defaultInventory)));
+        const craftQty = reactive({}); // 新增：用於綁定每個物品的批量製作輸入框
         const recipes = recipeDB;
         const partsData = subPartsData;
+
+        // 新增：複製文字到剪貼簿功能
+        const copyToClipboard = (text) => {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).catch(err => {
+                    console.error('複製失敗:', err);
+                });
+            } else {
+                // 降級方案相容較舊的瀏覽器
+                const input = document.createElement('input');
+                input.value = text;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+            }
+        };
 
         onMounted(() => {
             const saved = localStorage.getItem('ff14_shark_tracker');
@@ -381,16 +409,19 @@ createApp({
             return ((totalBaseNeed - totalBaseRemaining) / totalBaseNeed) * 100;
         });
 
-        const craftItem = (itemName, qty) => {
+        // 升級：加入批量計算邏輯 (預設值為 1，並限制最大 99)
+        const craftItem = (itemName, qty = 1) => {
+            qty = Math.min(Math.max(parseInt(qty) || 1, 1), 99);
             const recipe = recipes[itemName];
             if (!recipe) return;
 
             let canCraft = true;
+            let errorMessage = `【材料不足】製作 ${qty} 個「${itemName}」需要：\n`;
+            
             for (const [reqItem, reqQty] of Object.entries(recipe)) {
                 if (!inventory[reqItem] || inventory[reqItem].have < (reqQty * qty)) {
                     canCraft = false;
-                    alert(`【材料不足】製作需要 ${reqQty * qty} 個「${reqItem}」，但您目前身上只有 ${inventory[reqItem]?.have || 0} 個。`);
-                    break;
+                    errorMessage += `- ${reqQty * qty} 個「${reqItem}」 (目前身上僅有 ${inventory[reqItem]?.have || 0} 個)\n`;
                 }
             }
 
@@ -399,6 +430,8 @@ createApp({
                     inventory[reqItem].have -= (reqQty * qty);
                 }
                 inventory[itemName].have += qty;
+            } else {
+                alert(errorMessage);
             }
         };
 
@@ -413,7 +446,6 @@ createApp({
             }
         };
 
-        // 匯出功能
         const exportData = () => {
             const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(inventory));
             const downloadAnchorNode = document.createElement('a');
@@ -425,7 +457,6 @@ createApp({
             downloadAnchorNode.remove();
         };
 
-        // 匯入功能
         const triggerImport = () => {
             document.getElementById('importFile').click();
         };
@@ -456,7 +487,8 @@ createApp({
             currentTab, inventory, partsData, recipes, remainingNeeds, absoluteBaseNeeds,
             searchCraft, searchBase, filteredBaseItems, filteredCraftItems, 
             overallProgress, craftItem, resetData,
-            exportData, triggerImport, importData
+            exportData, triggerImport, importData,
+            craftQty, copyToClipboard // 將新功能拋出供模板使用
         };
     }
 }).mount('#app');
